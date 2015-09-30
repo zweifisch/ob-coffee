@@ -1,0 +1,31 @@
+* ob-coffee
+
+** setup
+
+To use =ob-coffee= in an =org-babel= source block, the cofee-script language
+must be enabled in the custom =org-babel-load-languages=
+alist. Alternatively, running the following snippet during
+initialization will enable the mode.
+
+#+BEGIN_SRC emacs-lisp
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((emacs-lisp . t)
+   (coffee . t)))
+#+END_SRC
+
+** supported header arguments
+
+- session
+
+** examples
+   
+*** promise
+
+#+BEGIN_SRC coffee
+Promise.resolve "secret"
+#+END_SRC
+
+#+RESULTS:
+: Promise { 'secret' }
+
