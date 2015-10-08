@@ -23,13 +23,23 @@
   '((inspect-promise . :any))
   "ob-coffee header arguments")
 
+(defconst ob-coffee-path-to-repl-js
+  (concat
+   (file-name-directory (or load-file-name buffer-file-name))
+   "repl.js"))
+
 (defun org-babel-execute:coffee (body params)
   (let ((session (cdr (assoc :session params)))
+        (result-type (cdr (assoc :result-type params)))
         (tmp (org-babel-temp-file "coffee-")))
-    (ob-coffee-ensure-session session)
-    (with-temp-file tmp (insert (ob-coffee-wrap body)))
-    (shell-command-to-string (format "coffee --no-header -c %s" tmp))
-    (ob-coffee-eval session (format ".load %s.js" tmp))))
+    (if (string= "none" session)
+        (progn
+          (with-temp-file tmp (insert (if (string= "output" result-type) body (ob-coffee-wrap body))))
+          (shell-command-to-string (format "coffee %s" tmp)))
+      (ob-coffee-ensure-session session)
+      (with-temp-file tmp (insert (ob-coffee-wrap body)))
+      (shell-command-to-string (format "coffee --no-header -cb %s" tmp))
+      (ob-coffee-eval session (format "eval(require('fs').readFileSync('%s.js', {encoding:'utf8'}))" tmp)))))
 
 (defun ob-coffee-find-last-expression ()
   (beginning-of-line)
@@ -44,26 +54,20 @@
 (defun ob-coffee-wrap (body)
   (with-temp-buffer
     (insert body)
-    (end-of-buffer)
     (when (ob-coffee-find-last-expression)
       (insert "__ob_coffee_last__ = ")
       (end-of-buffer)
       (insert "
 if 'function' is typeof __ob_coffee_last__.then
     __ob_coffee_last__.then console.log, console.log
-    return \"Promise\"
+    console.log \"Promise\"
 else
-    return __ob_coffee_last__"))
+    console.log __ob_coffee_last__"))
     (buffer-string)))
 
 (defun ob-coffee-eval (session body)
-  (let ((result (ob-coffee-eval-in-repl session body)))
-    (replace-regexp-in-string
-     "^\\([.]\\{3,\\} \\)+" ""
-     (replace-regexp-in-string
-      "^\\(> \\)+" ""
-      (replace-regexp-in-string
-       "^> undefined\n" "" result)))))
+  (replace-regexp-in-string "^ob-coffee > " ""
+   (ob-coffee-eval-in-repl session body)))
 
 (defun ob-coffee-ensure-session (session)
   (let ((name (format "*coffee-%s*" session)))
@@ -72,10 +76,8 @@ else
       (with-current-buffer (get-buffer-create name)
         (make-local-variable 'process-environment)
         (setq process-environment
-              (cons "NODE_NO_READLINE=1"
-                    (cons "TERM=vt100"
-                          (cons "NODE_DISABLE_COLORS=1" process-environment))))
-        (start-process name name "node"))
+              (cons "NODE_NO_READLINE=1" process-environment))
+        (start-process name name "node" ob-coffee-path-to-repl-js))
       (sit-for 0.5)
       (set-process-filter (get-process name) 'ob-coffee-process-filter))))
 
