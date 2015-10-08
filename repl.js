@@ -1,6 +1,6 @@
 var repl = require('repl');
 repl.start({
-    prompt: 'ob-coffee > ',
+    prompt: '',
     input: process.stdin,
     output: process.stdout,
     ignoreUndefined: true,

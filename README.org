@@ -22,10 +22,12 @@ initialization will enable the mode.
    
 *** promise
 
-#+BEGIN_SRC coffee
-Promise.resolve "secret"
+#+BEGIN_SRC coffee :session async
+new Promise (resolve, reject)->
+    setTimeout (-> resolve "finally"), 3000
 #+END_SRC
 
 #+RESULTS:
-: Promise { 'secret' }
+: Promise:
+: finally
 

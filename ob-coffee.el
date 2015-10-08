@@ -20,7 +20,7 @@
 (defvar ob-coffee-process-output nil)
 
 (defconst org-babel-header-args:coffee
-  '((inspect-promise . :any))
+  '((promise . :any))
   "ob-coffee header arguments")
 
 (defconst ob-coffee-path-to-repl-js
@@ -35,7 +35,9 @@
     (if (string= "none" session)
         (progn
           (with-temp-file tmp (insert (if (string= "output" result-type) body (ob-coffee-wrap body))))
-          (shell-command-to-string (format "coffee %s" tmp)))
+          (replace-regexp-in-string
+           "\x2029" ""
+           (shell-command-to-string (format "coffee %s" tmp))))
       (ob-coffee-ensure-session session)
       (with-temp-file tmp (insert (ob-coffee-wrap body)))
       (shell-command-to-string (format "coffee --no-header -cb %s" tmp))
@@ -58,16 +60,18 @@
       (insert "__ob_coffee_last__ = ")
       (end-of-buffer)
       (insert "
+__ob_coffee_log__ = (obj)->
+    console.log obj
+    process.stdout.write('\u2029') and undefined
 if 'function' is typeof __ob_coffee_last__.then
-    __ob_coffee_last__.then console.log, console.log
-    console.log \"Promise\"
+    __ob_coffee_last__.then __ob_coffee_log__, __ob_coffee_log__
+    console.log \"Promise:\"
 else
-    console.log __ob_coffee_last__"))
+    __ob_coffee_log__ __ob_coffee_last__"))
     (buffer-string)))
 
 (defun ob-coffee-eval (session body)
-  (replace-regexp-in-string "^ob-coffee > " ""
-   (ob-coffee-eval-in-repl session body)))
+  (ob-coffee-eval-in-repl session body))
 
 (defun ob-coffee-ensure-session (session)
   (let ((name (format "*coffee-%s*" session)))
@@ -82,16 +86,20 @@ else
       (set-process-filter (get-process name) 'ob-coffee-process-filter))))
 
 (defun ob-coffee-process-filter (process output)
-  (setq ob-coffee-process-output (cons output ob-coffee-process-output)))
+  (setq ob-coffee-process-output (concat ob-coffee-process-output output)))
+
+(defun ob-coffee-wait ()
+  (while (not (string-match-p "\x2029" ob-coffee-process-output))
+    (sit-for 0.2)))
 
 (defun ob-coffee-eval-in-repl (session body)
   (let ((name (format "*coffee-%s*" session)))
     (setq ob-coffee-process-output nil)
     (process-send-string name (format "%s\n" body))
     (accept-process-output (get-process name) nil nil 1)
-    (sit-for 1)
+    (ob-coffee-wait)
     (message
-     (mapconcat 'identity (reverse ob-coffee-process-output) ""))))
+     (replace-regexp-in-string "\x2029" "" ob-coffee-process-output))))
 
 (provide 'ob-coffee)
 ;;; ob-coffee.el ends here
