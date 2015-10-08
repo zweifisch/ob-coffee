@@ -27,9 +27,34 @@
   (let ((session (cdr (assoc :session params)))
         (tmp (org-babel-temp-file "coffee-")))
     (ob-coffee-ensure-session session)
-    (with-temp-file tmp (insert body))
-    (shell-command-to-string (format "coffee --no-header -cb %s" tmp))
+    (with-temp-file tmp (insert (ob-coffee-wrap body)))
+    (shell-command-to-string (format "coffee --no-header -c %s" tmp))
     (ob-coffee-eval session (format ".load %s.js" tmp))))
+
+(defun ob-coffee-find-last-expression ()
+  (beginning-of-line)
+  (if (or (eolp) (looking-at-p "[ \t]"))
+    (if (> (point) (point-min))
+        (progn
+          (forward-line -1)
+          (ob-coffee-find-last-expression))
+      nil)
+    t))
+
+(defun ob-coffee-wrap (body)
+  (with-temp-buffer
+    (insert body)
+    (end-of-buffer)
+    (when (ob-coffee-find-last-expression)
+      (insert "__ob_coffee_last__ = ")
+      (end-of-buffer)
+      (insert "
+if 'function' is typeof __ob_coffee_last__.then
+    __ob_coffee_last__.then console.log, console.log
+    return \"Promise\"
+else
+    return __ob_coffee_last__"))
+    (buffer-string)))
 
 (defun ob-coffee-eval (session body)
   (let ((result (ob-coffee-eval-in-repl session body)))
