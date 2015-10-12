@@ -19,6 +19,8 @@
 
 (defvar ob-coffee-process-output nil)
 
+(defvar ob-coffee-eoe "\u2029")
+
 (defconst org-babel-header-args:coffee
   '((promise . :any))
   "ob-coffee header arguments")
@@ -36,12 +38,12 @@
         (progn
           (with-temp-file tmp (insert (if (string= "output" result-type) body (ob-coffee-wrap body))))
           (replace-regexp-in-string
-           "\x2029" ""
+           ob-coffee-eoe ""
            (shell-command-to-string (format "coffee %s" tmp))))
       (ob-coffee-ensure-session session)
       (with-temp-file tmp (insert (ob-coffee-wrap body)))
       (shell-command-to-string (format "coffee --no-header -cb %s" tmp))
-      (ob-coffee-eval session (format "eval(require('fs').readFileSync('%s.js', {encoding:'utf8'}))" tmp)))))
+      (ob-coffee-eval-in-repl session (format "eval(require('fs').readFileSync('%s.js', {encoding:'utf8'}))" tmp)))))
 
 (defun ob-coffee-find-last-expression ()
   (beginning-of-line)
@@ -58,20 +60,17 @@
     (insert body)
     (when (ob-coffee-find-last-expression)
       (insert "__ob_coffee_last__ = ")
-      (end-of-buffer)
-      (insert "
+      (goto-char (point-max))
+      (insert (format "
 __ob_coffee_log__ = (obj)->
     console.log obj
-    process.stdout.write('\u2029') and undefined
+    process.stdout.write('%s') and undefined
 if 'function' is typeof __ob_coffee_last__.then
     __ob_coffee_last__.then __ob_coffee_log__, __ob_coffee_log__
     console.log \"Promise:\"
 else
-    __ob_coffee_log__ __ob_coffee_last__"))
+    __ob_coffee_log__ __ob_coffee_last__" ob-coffee-eoe)))
     (buffer-string)))
-
-(defun ob-coffee-eval (session body)
-  (ob-coffee-eval-in-repl session body))
 
 (defun ob-coffee-ensure-session (session)
   (let ((name (format "*coffee-%s*" session)))
@@ -89,7 +88,7 @@ else
   (setq ob-coffee-process-output (concat ob-coffee-process-output output)))
 
 (defun ob-coffee-wait ()
-  (while (not (string-match-p "\x2029" ob-coffee-process-output))
+  (while (not (string-match-p ob-coffee-eoe ob-coffee-process-output))
     (sit-for 0.2)))
 
 (defun ob-coffee-eval-in-repl (session body)
@@ -99,7 +98,7 @@ else
     (accept-process-output (get-process name) nil nil 1)
     (ob-coffee-wait)
     (message
-     (replace-regexp-in-string "\x2029" "" ob-coffee-process-output))))
+     (replace-regexp-in-string ob-coffee-eoe "" ob-coffee-process-output))))
 
 (provide 'ob-coffee)
 ;;; ob-coffee.el ends here
