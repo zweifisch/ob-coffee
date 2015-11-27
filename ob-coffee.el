@@ -39,11 +39,18 @@
           (with-temp-file tmp (insert (if (string= "output" result-type) body (ob-coffee-wrap body))))
           (replace-regexp-in-string
            ob-coffee-eoe ""
-           (shell-command-to-string (format "coffee %s" tmp))))
+           (ob-coffee--shell-command-to-string (list (format "NODE_PATH=%s" (ob-coffee--node-path)))
+                                               (list "coffee" tmp))))
       (ob-coffee-ensure-session session)
       (with-temp-file tmp (insert (ob-coffee-wrap body)))
       (shell-command-to-string (format "coffee --no-header -cb %s" tmp))
       (ob-coffee-eval-in-repl session (format "eval(require('fs').readFileSync('%s.js', {encoding:'utf8'}))" tmp)))))
+
+(defun ob-coffee--shell-command-to-string (environ command)
+  (with-temp-buffer
+    (let ((process-environment (append environ process-environment)))
+      (apply 'call-process (car command) nil t nil (cdr command))
+      (buffer-string))))
 
 (defun ob-coffee-find-last-expression ()
   (beginning-of-line)
@@ -72,15 +79,24 @@ else
     __ob_coffee_log__ __ob_coffee_last__" ob-coffee-eoe)))
     (buffer-string)))
 
+(defun ob-coffee--node-path ()
+  (let ((node-path (or (getenv "NODE_PATH") "")))
+    (format "%s:%snode_modules"
+            node-path
+            (file-name-directory
+             (buffer-file-name)))))
+
 (defun ob-coffee-ensure-session (session)
-  (let ((name (format "*coffee-%s*" session)))
+  (let ((name (format "*coffee-%s*" session))
+        (node-path (ob-coffee--node-path)))
     (unless (and (get-process name)
                  (process-live-p (get-process name)))
       (with-current-buffer (get-buffer-create name)
-        (make-local-variable 'process-environment)
-        (setq process-environment
-              (cons "NODE_NO_READLINE=1" process-environment))
-        (start-process name name "node" ob-coffee-path-to-repl-js))
+        (let ((process-environment
+               (append (list "NODE_NO_READLINE=1"
+                             (format "NODE_PATH=%s" node-path))
+                       process-environment)))
+          (start-process name name "node" ob-coffee-path-to-repl-js)))
       (sit-for 0.5)
       (set-process-filter (get-process name) 'ob-coffee-process-filter))))
 
