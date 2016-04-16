@@ -72,7 +72,7 @@
 __ob_coffee_log__ = (obj)->
     console.log obj
     process.stdout.write('%s') and undefined
-if 'function' is typeof __ob_coffee_last__.then
+if 'function' is typeof __ob_coffee_last__\?.then
     __ob_coffee_last__.then __ob_coffee_log__, __ob_coffee_log__
     console.log \"Promise:\"
 else
